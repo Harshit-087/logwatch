@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vigil — Log Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12151b;
+    --panel: #181d26;
+    --panel-alt: #1e2530;
+    --border: #262c38;
+    --text: #e6e9ef;
+    --text-muted: #7d8695;
+    --text-faint: #4d5560;
+    --info: #5b8def;
+    --warn: #e0a64d;
+    --error: #e0575b;
+    --good: #4fbf8b;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--good);
+    box-shadow: 0 0 0 3px rgba(79, 191, 139, 0.15);
+  }
+
+  .brand-mark.stale { background: var(--text-faint); box-shadow: none; }
+
+  .brand h1 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+
+  .conn-status {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 28px 60px;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .stat {
+    background: var(--panel);
+    padding: 16px 20px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 500;
+  }
+
+  .stat-value.error { color: var(--error); }
+  .stat-value.warn { color: var(--warn); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .panel-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chart-body {
+    padding: 16px 18px 8px;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 5px;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .anomaly-list, .log-list {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  .anomaly-item {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+
+  .anomaly-item:last-child { border-bottom: none; }
+
+  .sev-bar {
+    width: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .sev-bar.sev-5, .sev-bar.sev-4 { background: var(--error); }
+  .sev-bar.sev-3 { background: var(--warn); }
+  .sev-bar.sev-2, .sev-bar.sev-1 { background: var(--text-faint); }
+
+  .anomaly-body { flex: 1; min-width: 0; }
+
+  .anomaly-service {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .anomaly-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .anomaly-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+  }
+
+  table.log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+
+  .log-table td {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .log-table tr:last-child td { border-bottom: none; }
+
+  .log-table td.msg {
+    white-space: normal;
+    color: var(--text);
+    width: 100%;
+  }
+
+  .log-table td.time { color: var(--text-faint); }
+  .log-table td.service { color: var(--text-muted); }
+
+  .level-tag {
+    display: inline-block;
+    min-width: 42px;
+    font-weight: 600;
+  }
+
+  .level-tag.INFO { color: var(--info); }
+  .level-tag.DEBUG { color: var(--text-faint); }
+  .level-tag.WARN { color: var(--warn); }
+  .level-tag.ERROR { color: var(--error); }
+
+  .empty-state {
+    padding: 32px 18px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media (max-width: 860px) {
+    .columns { grid-template-columns: 1fr; }
+    .stat-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark" id="liveDot"></span>
+    <h1>Vigil</h1>
+  </div>
+  <div class="conn-status" id="connStatus">connecting…</div>
+</header>
+
+<main>
+  <div class="stat-row">
+    <div class="stat">
+      <div class="stat-label">Log volume (last 15 min)</div>
+      <div class="stat-value" id="statVolume">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Error rate (last 15 min)</div>
+      <div class="stat-value error" id="statErrorRate">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Open anomalies</div>
+      <div class="stat-value warn" id="statAnomalies">—</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span>Log volume / error rate — per minute</span>
+      <div class="chart-legend">
+        <span><span class="legend-dot" style="background:var(--info)"></span>total</span>
+        <span><span class="legend-dot" style="background:var(--error)"></span>errors</span>
+      </div>
+    </div>
+    <div class="chart-body">
+      <svg id="chart" width="100%" height="140" viewBox="0 0 1200 140" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <div class="columns">
+    <div class="panel">
+      <div class="panel-head"><span>Anomalies</span></div>
+      <div class="anomaly-list" id="anomalyList">
+        <div class="empty-state">No anomalies detected yet.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span>Live logs</span></div>
+      <div class="log-list" id="logList">
+        <div class="empty-state">Waiting for logs…</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const API_BASE = 'http://localhost:4000/api';
+  const POLL_MS = 3000;
+
+  function timeAgo(iso) {
+    const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return s + 's ago';
+    return Math.floor(s / 60) + 'm ago';
+  }
+
+  function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-GB', { hour12: false });
+  }
+
+  async function fetchJSON(path) {
+    const res = await fetch(API_BASE + path);
+    if (!res.ok) throw new Error('bad response');
+    return res.json();
+  }
+
+  function renderStats(logs, anomalies) {
+    const total = logs.length;
+    const errors = logs.filter(l => l.level === 'ERROR').length;
+    const rate = total ? Math.round((errors / total) * 100) : 0;
+    document.getElementById('statVolume').textContent = total;
+    document.getElementById('statErrorRate').textContent = rate + '%';
+    document.getElementById('statAnomalies').textContent = anomalies.length;
+  }
+
+  function renderChart(series) {
+    const svg = document.getElementById('chart');
+    const w = 1200, h = 140, padding = 4;
+    if (!series.length) { svg.innerHTML = ''; return; }
+
+    const maxTotal = Math.max(1, ...series.map(s => s.total));
+    const barWidth = w / series.length;
+
+    let bars = '';
+    series.forEach((bucket, i) => {
+      const x = i * barWidth;
+      const totalH = (bucket.total / maxTotal) * (h - padding * 2);
+      const errorH = (bucket.errors / maxTotal) * (h - padding * 2);
+      const totalY = h - padding - totalH;
+      const errorY = h - padding - errorH;
+
+      bars += `<rect x="${x + 1}" y="${totalY}" width="${barWidth - 2}" height="${totalH}" fill="var(--info)" opacity="0.55" />`;
+      if (bucket.errors > 0) {
+        bars += `<rect x="${x + 1}" y="${errorY}" width="${barWidth - 2}" height="${Math.max(errorH, 2)}" fill="var(--error)" />`;
+      }
+    });
+    svg.innerHTML = bars;
+  }
+
+  function renderAnomalies(anomalies) {
+    const el = document.getElementById('anomalyList');
+    if (!anomalies.length) {
+      el.innerHTML = '<div class="empty-state">No anomalies detected yet.</div>';
+      return;
+    }
+    el.innerHTML = anomalies.slice(0, 30).map(a => `
+      <div class="anomaly-item">
+        <div class="sev-bar sev-${a.severity}"></div>
+        <div class="anomaly-body">
+          <div class="anomaly-service">${a.service}</div>
+          <div class="anomaly-desc">${a.description}</div>
+          <div class="anomaly-time">${timeAgo(a.detectedAt)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderLogs(logs) {
+    const el = document.getElementById('logList');
+    if (!logs.length) {
+      el.innerHTML = '<div class="empty-state">Waiting for logs…</div>';
+      return;
+    }
+    const rows = logs.slice(0, 60).map(l => `
+      <tr>
+        <td class="time">${formatTime(l.timestamp)}</td>
+        <td><span class="level-tag ${l.level}">${l.level}</span></td>
+        <td class="service">${l.service}</td>
+        <td class="msg">${l.message}</td>
+      </tr>
+    `).join('');
+    el.innerHTML = `<table class="log-table"><tbody>${rows}</tbody></table>`;
+  }
+
+  async function refresh() {
+    try {
+      const [logs, anomalies, stats] = await Promise.all([
+        fetchJSON('/logs?limit=200'),
+        fetchJSON('/anomalies?limit=30'),
+        fetchJSON('/stats?minutes=15'),
+      ]);
+
+      renderStats(logs, anomalies);
+      renderChart(stats);
+      renderAnomalies(anomalies);
+      renderLogs(logs);
+
+      document.getElementById('liveDot').classList.remove('stale');
+      document.getElementById('connStatus').textContent = 'connected — updated ' + new Date().toLocaleTimeString('en-GB', { hour12: false });
+    } catch (err) {
+      document.getElementById('liveDot').classList.add('stale');
+      document.getElementById('connStatus').textContent = 'connection lost — retrying…';
+      console.error(err);
+    }
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+</script>
+
+</body>
+</html>

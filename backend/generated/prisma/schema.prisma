@@ -1,0 +1,50 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
+
+model LogEntry {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime
+  level     LogLevel
+  service   String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([level])
+  @@index([service])
+}
+
+enum AnomalyType {
+  ERROR_SPIKE
+  REPEATED_ERROR
+  SERVICE_SILENCE
+}
+
+model Anomaly {
+  id          Int         @id @default(autoincrement())
+  type        AnomalyType
+  service     String
+  description String
+  severity    Int         @default(1) // 1-5, higher = worse
+  detectedAt  DateTime    @default(now())
+  windowStart DateTime
+  windowEnd   DateTime
+
+  @@index([detectedAt])
+  @@index([service])
+}
